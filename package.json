@@ -1,0 +1,15 @@
+{
+  "name": "node-visualforce-remoting",
+  "version": "1.0.0",
+  "description": "Execute salesforce visualforce remoting methods outside of salesforce, incurring no API calls",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "daniel.nakov@gmail.com",
+  "license": "MIT",
+  "dependencies": {
+    "request": "^2.79.0",
+    "xml2js": "^0.4.17"
+  }
+}
