@@ -158,6 +158,7 @@ module.exports = function main(serverUrl, sessionId, cb) {
       }
     }, function(er, res) {
       if(er) return cb(er)
+      if(res.body[0].statusCode !== 200) return cb(res.body[0])
       cb(null,resolveRefs(res.body[0].result))
     })
   }

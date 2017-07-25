@@ -8,8 +8,8 @@
 
 var VF = require('./vfproxy')
 
-VF('https://na40.salesforce.com', '00D460000016Itr!ARUAQEcOtnmrnG8i0wAfMDZujpeJml321ld_wpN56fZIZjT2zDBpGzu16cfN4ioByphibAnFWgQsCtg5dOI1sD7E5cgOLyI8', function(er, executeMethod) {
-  executeMethod('/apex/config', 'porthole.config.getApiNames', [], (er, res) => {
+VF('https://cs3.salesforce.com', '00DQ000000GKa6H!AR0AQM5xPcdq5zv4ot.2D.B_eUezlxqTZ03UuIcyElTuKyA4kzJ9RJ_WfMJed5IB4_d_ptQo_EuZTK6eyJ9CKSqBuA4IWCCH', function(er, executeMethod) {
+  executeMethod('/apex/porthole__config', 'porthole.config.rawQuery', ['select'], (er, res) => {
     console.log(er, res)
   })
 })
