@@ -1,9 +1,9 @@
 var request = require('request')
 
+module.exports.getVFCredentials = (serverUrl, sessionId, vfpage, callback) => {
+  let VFURL, remotingstuff
 
-function getServerUrl(serverUrl) {
-  let VFURL
-  var firstDotPos = serverUrl.indexOf('.')
+  let firstDotPos = serverUrl.indexOf('.')
   if(serverUrl.indexOf('my.salesforce') !== -1) {
     VFURL = serverUrl.substr(0, firstDotPos) + '--c.' + serverUrl.substr(firstDotPos + 1)
     VFURL = VFURL.replace('my.salesforce', 'visual.force' )
@@ -11,55 +11,44 @@ function getServerUrl(serverUrl) {
     VFURL = serverUrl.substr(0, 8) + 'c.' + serverUrl.substr(8)
     VFURL = VFURL.replace('salesforce', 'visual.force')
   }
-  return VFURL
-}
 
-function getCookieJar(sessionId, serverUrl) {
+  let tok = sessionId
   let JAR = request.jar()
-  var cookie = request.cookie('sid=' + sessionId)
-  JAR.setCookie(cookie, serverUrl)
-  return JAR
+
+  JAR.setCookie(request.cookie('sid=' + tok), serverUrl)
+    request({
+      url: serverUrl + vfpage,
+      jar: JAR,
+      method: 'GET'
+    }, function(er, res) {
+      if(er) return callback(er)
+      VFURL = res.request.uri.protocol + '//' + res.request.uri.host
+      try {
+        remotingstuff = JSON.parse(res.body.split('Visualforce.remoting.Manager.add(new $VFRM.RemotingProviderImpl(')[1].split('));')[0])
+      } catch(er) {
+        return callback(er)
+      }
+      let cookies = JAR.getCookies(VFURL)
+      let vfRemoteReq = {
+        url: VFURL,
+        vfpage,
+        cookies: cookies.map(c => c.toString()),
+        ctx: remotingstuff
+      }
+      return callback(null, vfRemoteReq)
+    })
 }
 
-module.exports.getVisualforcePage = function(serverUrl, sessionId, vfpage, cb) {
-  var JAR, VFURL, RCONTEXT
-  var PAGE_CACHE = {}
-
-  VFURL = getServerUrl(serverUrl)
-  JAR = getCookieJar(sessionId, serverUrl)
-
-  request({
-    url: serverUrl + vfpage,
-    jar: JAR,
-    method: 'GET'
-  }, function(er, res) {
-    if(er) return cb(er)
-
-
-    VFURL = res.request.uri.protocol + '//' + res.request.uri.host
-    JAR.setCookie(JAR.getCookieString(VFURL))
-    try {
-      var remotingstuff = JSON.parse(res.body.split('Visualforce.remoting.Manager.add(new $VFRM.RemotingProviderImpl(')[1].split('));')[0])
-    } catch(er) {
-      return cb(er)
-    }
-
-    PAGE_CACHE[vfpage] = remotingstuff
-    //return cb(null, executeMethod)
-    return cb(null, remotingstuff)
-  })
-}
-
-module.exports.apexremote = function _executeMethod(serverUrl, sessionId, pageTokens, vfpage, method, data, cb) {
-  let VFURL = getServerUrl(serverUrl)
-  let JAR = getCookieJar(sessionId)
-
+module.exports.apexremote = (vfRequest, method, data, cb) => {
+  let { url: VFURL, cookies, vfpage, ctx: pageTokens } = vfRequest
   var lastDot = method.lastIndexOf('.')
   var cls = method.slice(0, lastDot)
   var mtd = method.slice(lastDot + 1)
   var _ctx = pageTokens.actions[cls].ms.filter( function(c) { return c.name === mtd } )
   var ctx = _ctx.length > 0 && _ctx[0]
   ctx.vid = pageTokens.vf.vid
+  let JAR = request.jar()
+  cookies.map(cookie => JAR.setCookie(cookie, VFURL + '/apexremote'))
   request({
     url: VFURL + '/apexremote',
     method: 'POST',
@@ -82,98 +71,10 @@ module.exports.apexremote = function _executeMethod(serverUrl, sessionId, pageTo
     }
   }, function(er, res) {
     if(er) return cb(er)
+    if(res.body[0].statusCode !== 200) return cb(res.body[0])
     cb(null,resolveRefs(res.body[0].result))
   })
-}
-
-
-module.exports = function main(serverUrl, sessionId, cb) {
-
-  var JAR, VFURL, RCONTEXT
-  var PAGE_CACHE = {}
-
-  var firstDotPos = serverUrl.indexOf('.')
-  if(serverUrl.indexOf('my.salesforce') !== -1) {
-    VFURL = serverUrl.substr(0, firstDotPos) + '--c.' + serverUrl.substr(firstDotPos + 1)
-    VFURL = VFURL.replace('my.salesforce', 'visual.force' )
-  } else {
-    VFURL = serverUrl.substr(0, 8) + 'c.' + serverUrl.substr(8)
-    VFURL = VFURL.replace('salesforce', 'visual.force')
-  }
-
-  var tok = sessionId
-  JAR = request.jar()
-  var cookie = request.cookie('sid=' + tok)
-  JAR.setCookie(cookie, serverUrl)
-  cb(null, executeMethod)
-  return executeMethod
-
-  function getPageTokens(vfpage, callback) {
-    request({
-      url: serverUrl + vfpage,
-      jar: JAR,
-      method: 'GET'
-    }, function(er, res) {
-      if(er) return cb(er)
-      VFURL = res.request.uri.protocol + '//' + res.request.uri.host
-      JAR.setCookie(JAR.getCookieString(VFURL))
-      try {
-        var remotingstuff = JSON.parse(res.body.split('Visualforce.remoting.Manager.add(new $VFRM.RemotingProviderImpl(')[1].split('));')[0])
-      } catch(er) {
-        return callback(er)
-      }
-
-      PAGE_CACHE[vfpage] = remotingstuff
-      //return cb(null, executeMethod)
-      return callback(null, remotingstuff)
-    })
-  }
-
-  function _executeMethod(pageTokens, vfpage, method, data, cb) {
-    var lastDot = method.lastIndexOf('.')
-    var cls = method.slice(0, lastDot)
-    var mtd = method.slice(lastDot + 1)
-    var _ctx = pageTokens.actions[cls].ms.filter( function(c) { return c.name === mtd } )
-    var ctx = _ctx.length > 0 && _ctx[0]
-    ctx.vid = pageTokens.vf.vid
-    request({
-      url: VFURL + '/apexremote',
-      method: 'POST',
-      jar: JAR,
-      headers: {
-        Referer: VFURL + vfpage,
-        Origin: VFURL,
-        'X-User-Agent': 'Visualforce-Remoting',
-        DNT: '1',
-
-      },
-      json: true,
-      body: {
-        action: cls,
-        ctx: ctx,
-        method: mtd,
-        type:'rpc',
-        data: data,
-        tid: 2
-      }
-    }, function(er, res) {
-      if(er) return cb(er)
-      if(res.body[0].statusCode !== 200) return cb(res.body[0])
-      cb(null,resolveRefs(res.body[0].result))
-    })
-  }
-
-  function executeMethod(vfpage, method, data, cb) {
-    var pageTokens = PAGE_CACHE[vfpage]
-    if(!pageTokens) {
-      getPageTokens(vfpage, function(er, pageTokens) {
-        if(er) return cb(er)
-         _executeMethod(pageTokens, vfpage, method, data, cb)
-      })
-    } else {
-      _executeMethod(pageTokens, vfpage, method, data, cb)
-    }
-  }
+  
 }
 
 function isArray(a) {
