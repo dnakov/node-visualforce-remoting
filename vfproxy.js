@@ -71,6 +71,7 @@ module.exports.apexremote = (vfRequest, method, data, cb) => {
     }
   }, function(er, res) {
     if(er) return cb(er)
+    if(res.headers['content-type'].indexOf('json') === -1) return cb({ message: 'Unknown Error, possibly needs a new token', statusCode: 402 })
     if(res.body[0].statusCode !== 200) return cb(res.body[0])
     cb(null,resolveRefs(res.body[0].result))
   })
