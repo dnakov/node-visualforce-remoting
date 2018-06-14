@@ -42,7 +42,6 @@ module.exports.getVFCredentials = (namespace, serverUrl, customDomain, sessionId
         ctx: remotingstuff,
 	sid: customDomain ? tok : null
       }
-      console.log(vfRemoteReq)
       return callback(null, vfRemoteReq)
     })
 }
