@@ -9,7 +9,7 @@
   "author": "daniel.nakov@gmail.com",
   "license": "MIT",
   "dependencies": {
-    "request": "^2.81.0",
+    "request": "^2.87.0",
     "xml2js": "^0.4.17"
   }
 }

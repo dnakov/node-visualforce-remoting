@@ -1,23 +1,28 @@
 var request = require('request')
 
-module.exports.getVFCredentials = (serverUrl, sessionId, vfpage, callback) => {
+module.exports.getVFCredentials = (namespace, serverUrl, customDomain, sessionId, vfpage, callback) => {
   let VFURL, remotingstuff
-
-  let firstDotPos = serverUrl.indexOf('.')
-  if(serverUrl.indexOf('my.salesforce') !== -1) {
-    VFURL = serverUrl.substr(0, firstDotPos) + '--c.' + serverUrl.substr(firstDotPos + 1)
-    VFURL = VFURL.replace('my.salesforce', 'visual.force' )
+  if(customDomain) {
+    VFURL = serverUrl
   } else {
-    VFURL = serverUrl.substr(0, 8) + 'c.' + serverUrl.substr(8)
-    VFURL = VFURL.replace('salesforce', 'visual.force')
+    if(!namespace || !namespace.length) namespace = 'c'
+    
+    let firstDotPos = serverUrl.indexOf('.')
+    if(serverUrl.indexOf('my.salesforce') !== -1) {
+      VFURL = serverUrl.substr(0, firstDotPos) + '--c.' + serverUrl.substr(firstDotPos + 1)
+      VFURL = VFURL.replace('my.salesforce', 'visual.force' )
+    } else {
+      VFURL = serverUrl.substr(0, 8) + namespace + '.' + serverUrl.substr(8)
+      VFURL = VFURL.replace('salesforce', 'visual.force')
+    }
   }
-
   let tok = sessionId
-  let JAR = request.jar()
+ let JAR = request.jar()
 
-  JAR.setCookie(request.cookie('sid=' + tok), serverUrl)
-    request({
-      url: serverUrl + vfpage,
+  JAR.setCookie(request.cookie('sid=' + tok), VFURL)
+  let url = VFURL + vfpage
+  request({
+      url: url,
       jar: JAR,
       method: 'GET'
     }, function(er, res) {
@@ -28,13 +33,16 @@ module.exports.getVFCredentials = (serverUrl, sessionId, vfpage, callback) => {
       } catch(er) {
         return callback(er)
       }
+      
       let cookies = JAR.getCookies(VFURL)
       let vfRemoteReq = {
         url: VFURL,
         vfpage,
         cookies: cookies.map(c => c.toString()),
-        ctx: remotingstuff
+        ctx: remotingstuff,
+	sid: customDomain ? tok : null
       }
+      console.log(vfRemoteReq)
       return callback(null, vfRemoteReq)
     })
 }
@@ -49,6 +57,7 @@ module.exports.apexremote = (vfRequest, method, data, cb) => {
   ctx.vid = pageTokens.vf.vid
   let JAR = request.jar()
   cookies.map(cookie => JAR.setCookie(cookie, VFURL + '/apexremote'))
+  if(vfRequest.sid) JAR.setCookie(request.cookie('sid=' + vfRequest.sid), VFURL)
   request({
     url: VFURL + '/apexremote',
     method: 'POST',
@@ -58,7 +67,6 @@ module.exports.apexremote = (vfRequest, method, data, cb) => {
       Origin: VFURL,
       'X-User-Agent': 'Visualforce-Remoting',
       DNT: '1',
-
     },
     json: true,
     body: {
