@@ -1,6 +1,6 @@
 {
   "name": "@invisr/node-visualforce-remoting",
-  "version": "2.1.0",
+  "version": "2.1.1",
   "description": "Execute salesforce visualforce remoting methods outside of salesforce, incurring no API calls",
   "main": "index.js",
   "scripts": {
